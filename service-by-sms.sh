@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-## Created 20191001 / Last updated 20191016
+## Created 20191001 / Last updated 20220712
+## Thomas Geens <thomas@geens.be>
 ## Gabriel Ulici <ulicigabriel@gmail.com>
 
 PROG="`basename $0`"
 HOSTNAME="`hostname`"
-# twilio live account
-ACCOUNTSID="XXXXX"  # Your Account SID from www.twilio.com/console
-AUTHTOKEN="XXXXX"  # Your Auth Token from www.twilio.com/console
-MESSAGINSERVICESID='XXXXX' # Your Messaging Service SID from www.twilio.com/console
+# Name of authfile containing the credentials etc.
+# Make sure you exclude this file from your repository using .gitignore
+# Example content:
+#   ORIGINATOR="TUI"
+#   ROUTE="2693"
+#   BEARERTOKEN=***************
+AUTHFILE=spryng.auth
 
 function Usage() {
 cat << EOF
 
 The following are mandatory:
+  -a AUTHFILE (\$authfile$)
   -d LONGDATETIME (\$icinga.long_date_time$)
   -e SERVICENAME (\$service.name$)
   -l HOSTALIAS (\$host.name$)
@@ -31,9 +36,10 @@ EOF
 exit 1;
 }
 
-while getopts 4:6:b:c:d:e:f:hi:l:n:o:r:s:t:u:v: opt
+while getopts 4:6:a:b:c:d:e:f:hi:l:n:o:r:s:t:u:v: opt
 do
   case "$opt" in
+    a) AUTHFILE=$OPTARG ;;
     d) LONGDATETIME=$OPTARG ;;
     e) SERVICENAME=$OPTARG ;;
     l) HOSTALIAS=$OPTARG ;;
@@ -54,6 +60,21 @@ do
 done
 
 shift $((OPTIND - 1))
+
+## Retrieve authentication variables from auth file
+source $AUTHFILE
+# remove leading whitespace characters
+ORIGINATOR="${ORIGINATOR#"${ORIGINATOR%%[![:space:]]*}"}"
+# remove trailing whitespace characters
+ORIGINATOR="${ORIGINATOR%"${ORIGINATOR##*[![:space:]]}"}"
+# remove leading whitespace characters
+ROUTE="${ROUTE#"${ROUTE%%[![:space:]]*}"}"
+# remove trailing whitespace characters
+ROUTE="${ROUTE%"${ROUTE##*[![:space:]]}"}"
+# remove leading whitespace characters
+BEARERTOKEN="${BEARERTOKEN#"${BEARERTOKEN%%[![:space:]]*}"}"
+# remove trailing whitespace characters
+BEARERTOKEN="${BEARERTOKEN%"${BEARERTOKEN##*[![:space:]]}"}"
 
 ## Build the message's subject
 SUBJECT="[$NOTIFICATIONTYPE] $SERVICEDISPLAYNAME on $HOSTDISPLAYNAME is $SERVICESTATE!"
@@ -78,6 +99,9 @@ for PHONE in "${ADDR[@]}"; do # access each element of array
 
     Info?    $SERVICEOUTPUT
 
+    Originator? $ORIGINATOR
+    Route?      $ROUTE
+
     When?    $LONGDATETIME
     Service? $SERVICENAME (aka "$SERVICEDISPLAYNAME")
     Host?    $HOSTALIAS (aka "$HOSTDISPLAYNAME")
@@ -93,11 +117,19 @@ EOF
     fi
 
     ## And finally: send the SMS using TWILIO.
-    CURL=$(curl -s -X POST https://api.twilio.com/2010-04-01/Accounts/$ACCOUNTSID/Messages.json \
-    --data-urlencode "Body=$SUBJECT" \
-    --data-urlencode "MessagingServiceSid=$MESSAGINSERVICESID" \
-    --data-urlencode "To=$PHONE" \
-    -u $ACCOUNTSID:$AUTHTOKEN)
+    CURL=$(curl --trace service-by-sms.txt --location --request POST https://rest.spryngsms.com/v1/messages \
+    --header "Accept: application/json" \
+    --header "Authorization: Bearer $BEARERTOKEN" \
+    --header "Content-Type: application/json" \
+    --data-raw "{
+    "\"body"\": "\"$SUBJECT"\",
+    "\"encoding"\": "\"auto"\",
+    "\"originator"\": "\"$ORIGINATOR"\",
+    "\"recipients"\": [
+      "\"$PHONE"\"
+    ],
+    "\"route"\": "\"$ROUTE"\"
+}")
 
     ## Are we verbose? Then put a message to syslog.
     if [ "$VERBOSE" == "true" ] ; then

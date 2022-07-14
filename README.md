@@ -1,26 +1,34 @@
 # icinga2-sms
 
-Sending Icinga 2 notifications via SMS with Twilio!
+Sending Icinga 2 notifications via SMS with SPRYNG!
 
-## Preparing
+## About
+Derived from Gabriel Ulici's work at https://github.com/GabrielUlici/icinga2-sms
 
-Create a twilio account (https://www.twilio.com/console)
-
-Then you need to add a "Messaging Services" (https://www.twilio.com/console/sms/services) to your account. And buy a phone number (https://www.twilio.com/console/sms/services/SERVICESID/numbers).
-
-Doc about Messaging Services: https://www.twilio.com/docs/sms/send-messages#messaging-services
 ## Examples
 
-The phone numbers have to be international format (https://support.twilio.com/hc/en-us/articles/223183008-Formatting-International-Phone-Numbers) and for a contact there is the possibility to add multiple numbers as a comma separated list.
+The phone numbers have to be international format, e.g. +3212345678. For a contact there is the possibility to add multiple numbers as a comma separated list.
 
 '+XXXX'
 
 '+XXXX, ‭+XXXX‬, +XXXX‬'
 
+## Authentication file
+
+Via argument `-a` you reference an external authenticaion file holding your credentials for SPRYNG. This prevents you from saving these secrets within the script file itself, or within Icinga.
+
+The authentication file structure should be as follows:
+```ini
+ORIGINATOR="TUI"
+ROUTE="2693"
+BEARERTOKEN=ab12cd34ef56gh78ij90kl...
+```
+
 ### Testing a notification
 
-```ini
-sudo -u nagios ./host-by-sms.sh \
+```bash
+$ sudo -u nagios ./host-by-sms.sh \
+  -a spryng.auth \
   -d 'LONGDATE' \
   -l 'HOSTALIAS' \
   -n 'HOSTDISPLAYNAME' \
@@ -30,12 +38,13 @@ sudo -u nagios ./host-by-sms.sh \
   -t 'NOTIFICATIONTYPE'
 ```
 
-```ini
+```text
 Output SMS : [PROBLEM] Host host-display-name is WARNING!
 ```
 
-```ini
-sudo -u nagios ./service-by-sms.sh \
+```bash
+$ sudo -u nagios ./service-by-sms.sh \
+  -a spryng.auth \
   -d 'LONGDATE' \
   -e 'SERVICENAME' \
   -l 'HOSTALIAS' \
@@ -47,18 +56,22 @@ sudo -u nagios ./service-by-sms.sh \
   -u 'SERVICEDISPLAYNAME'`
 ```
 
-```ini
+```text
 Output SMS :  [RECOVERY] processes on host-display-name is OK!
 ```
 
 ### Icinga2 objects
 #### Example Command Definitions
 
-```ini
+```json
 object NotificationCommand "Host Alarm By SMS" {
     import "plugin-notification-command"
-    command = [ "/etc/icinga2/scripts/host-by-sms.sh" ]
+    command = [ "/usr/lib/nagios/plugins/host-by-sms.sh" ]
     arguments += {
+        "-a" = {
+            required = true
+            value = "$host-by-sms-authfile$"
+        }
         "-d" = {
             required = true
             value = "$icinga.long_date_time$"
@@ -92,11 +105,15 @@ object NotificationCommand "Host Alarm By SMS" {
 }
 ```
 
-```ini
+```json
 object NotificationCommand "Service Alarm By SMS" {
     import "plugin-notification-command"
-    command = [ "/etc/icinga2/scripts/service-by-sms.sh" ]
+    command = [ "/usr/lib/nagios/plugins/service-by-sms.sh" ]
     arguments += {
+        "-a" = {
+            required = true
+            value = "$service-by-sms-authfile$"
+        }
         "-d" = {
             required = true
             value = "$icinga.long_date_time$"
@@ -105,7 +122,6 @@ object NotificationCommand "Service Alarm By SMS" {
             required = true
             value = "$service.name$"
         }
-
         "-l" = {
             required = true
             value = "$host.name$"
