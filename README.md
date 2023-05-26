@@ -19,8 +19,8 @@ Via argument `-a` you reference an external authenticaion file holding your cred
 
 The authentication file structure should be as follows:
 ```ini
-ORIGINATOR="TUI"
-ROUTE="2693"
+ORIGINATOR="NAME"
+ROUTE="0000"
 BEARERTOKEN=ab12cd34ef56gh78ij90kl...
 ```
 
